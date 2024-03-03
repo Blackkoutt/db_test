@@ -1,0 +1,233 @@
+﻿@page
+@model Biblioteka.Views.Books.IndexModel
+
+@{
+    ViewData["Title"] = "Index";
+}
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<BibUser> SignInManager
+@inject UserManager<BibUser> UserManager
+
+<div class="main_container">
+    <div class="inner_container">
+        <div class="list_header">
+            <h1>Lista Dostępnych Książek <i class="fas fa-book"></i></h1>
+        </div>
+        @if (User.IsInRole("Employee") || User.IsInRole("Admin"))
+        {
+            <div class="move_right">
+                <button class="button buttonDefault addNewBookButton">
+                    <a class="nav-link lightText" asp-page="Create">Dodaj nową książkę</a>
+                </button>
+            </div>
+        }
+        @{
+            if (!Model.Book.Any())
+            {
+                <img src="~/images/nobooks.jpg" style="position:relative;width: 100%;height: auto;" />
+            }
+            else
+            {
+                <div class="search_div">
+                    <form method="get" asp-page="./Index">
+                        <input type="text" placeholder="Wyszukaj książkę" name="SearchTerm" value="@Model.SearchTerm">
+                        <button type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </form>
+                </div>
+                <div class="filtres">
+                    <p class="filter_header">Filtry:</p>
+                    <div class="filtres-inner-div">
+                        <div id="genreDropdown">
+                            <select multiple id="select_genres">
+                                @foreach (var genre in Model.Genres)
+                                {
+                                    <option value="@genre.genreId">
+                                        @genre.name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div id="tagDropdown">
+                            <select multiple id="select_tags">
+                                @foreach (var tag in Model.Tags)
+                                {
+                                    <option value="@tag.tagId">
+                                        @tag.name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div id="authorDropdown">
+                            <select multiple id="select_authors">
+                                @foreach (var author in Model.Author)
+                                {
+                                    <option value="@author.authorId">
+                                        @author.name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="list_div">
+                    <div class="table-responsive book_table_scroll">
+                        <table id="booksTable" class="tableToModify">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        @Html.DisplayNameFor(model => model.Book.FirstOrDefault().title)
+                                    </th>
+                                    <th>
+                                        @Html.DisplayNameFor(model => model.Book.FirstOrDefault().availableCopys)
+                                    </th>
+                                    <th>
+                                        @Html.DisplayNameFor(model => model.Book.FirstOrDefault().releaseDate)
+                                    </th>
+                                    <th>
+                                        @Html.DisplayName("Autorzy")
+
+                                    </th>
+                                    <th>
+                                        @Html.DisplayNameFor(model => model.Book.FirstOrDefault().genre)
+                                    </th>
+                                    <th>
+                                        @Html.DisplayName("Tagi")
+                                    </th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.Book)
+                                {
+                                    <tr data-genre="@item.genre.genreId.ToString()"
+                                        data-tags="@string.Join(",", item.tags.Select(t => t.tagId))"
+                                        data-authors="@string.Join(",", item.authors.Select(a => a.authorId))">
+                                        <td style="font-weight: bold;">
+                                            @Html.DisplayFor(modelItem => item.title)
+                                        </td>
+                                        <td>
+                                            @Html.DisplayFor(modelItem => item.availableCopys)
+                                        </td>
+                                        <td>
+                                            @item.releaseDate.ToString("yyyy-MM-dd")
+                                        </td>
+                                        <td>
+
+                                            @foreach (var authors in item.authors.Select((value, index) => new { value, index }))
+                                            {
+
+                                                @if (authors.index < item.authors.Count - 1)
+                                                {
+                                                    <span>@authors.value.author.name @authors.value.author.surname, </span>
+                                                }
+                                                else
+                                                {
+                                                    <span>@authors.value.author.name @authors.value.author.surname</span>
+                                                }
+
+                                            }
+                                        </td>
+                                        <td>
+                                            @Html.DisplayFor(modelItem => item.genre.name)
+                                        </td>
+                                        <td>
+                                            @foreach (var tag in item.tags)
+                                            {
+                                                <span>@tag.tag.name</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @{
+                                                if (User.IsInRole("Admin") || User.IsInRole("Employee"))
+                                                {
+                                                    <button class="button buttonGreen"><a class="lightText" asp-page="./Edit" asp-route-id="@item.bookId">Edytuj</a></button>
+                                                    <button class="button buttonRed"><a class="lightText" asp-page="./Delete" asp-route-id="@item.bookId">Usuń</a></button>
+                                                }
+                                            }
+                                            <button class="button buttonYellow"><a class="lightText" asp-page="./Details" asp-route-id="@item.bookId">Detale</a></button>
+                                            @{
+                                                if (item.availableCopys < 1)
+                                                {
+                                                    <div style="cursor: default" class="button buttonDefault lightText">brak książek</div>
+                                                }
+                                                else
+                                                {
+
+                                        if (User.Identity.IsAuthenticated)
+                                        {
+                                            if (User.IsInRole("Reader") && !User.IsInRole("Employee"))
+                                            {
+                                                <input type="button" value="Do Koszyka" class="button buttonGreen" onclick="addToBasket('@item.bookId', '@item.title')" />
+                                                <button type="button" id="redirectToBasketButton" class="button buttonGreen" onclick="addAndRedirect('@item.bookId', '@item.title')">Wypożycz</button>
+
+                                            }
+                                            else if (User.IsInRole("Guest"))
+                                            {
+                                                <button class="button buttonDefault"><a class="lightText" asp-page="../RoomReservations/IndexGuest">Wypożycz</a></button>
+                                            }
+
+                                                        else if (!User.IsInRole("Employee"))
+                                                        {
+                                                            <button class="button buttonDefault"><a class="lightText" asp-area="Identity" asp-page="/Account/Login">Wypożycz</a></button>
+                                                        }
+
+                                                    }
+
+                                                    else
+                                                    {
+                                                        <button class="button buttonDefault"><a class="lightText" asp-area="Identity" asp-page="/Account/Login">Wypożycz</a></button>
+
+                                                    }
+
+                                    }
+                                }
+
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        }
+        
+    </div>
+</div>
+<script>
+    var basket = JSON.parse(sessionStorage.getItem('basket')) || [];
+
+    function addToBasket(bookId, title) {
+
+        if (basket.some(item => item.bookId === bookId)) {
+            alert('Książka już jest w koszyku.');
+            return;
+        }
+
+        if (basket.length >= 5) {
+            alert('Koszyk jest pełny. Możesz dodać maksymalnie 5 książek.');
+            return;
+        }
+
+        basket.push({ book: { bookId: bookId, title: title } });
+        alert('Książka dodana do koszyka.');
+        console.log(basket);
+
+        // zapisz do session storage
+        sessionStorage.setItem('basket', JSON.stringify(basket));
+        console.log(sessionStorage.getItem('basket'));
+    }
+
+
+    function addAndRedirect(bookId, title) {
+        addToBasket(bookId, title);
+        window.location.href = '/Basket/Index';
+    }
+</script>
+<script src="~/js/filter_book_list.js"></script>
+
+
+
+
